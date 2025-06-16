@@ -1,0 +1,4 @@
+term_type,total_medications,complete_records,has_dose_form,has_strength,has_sig,avg_completeness_percent,avg_sig_count,complete_records_pct,dose_form_pct,strength_pct,sig_pct
+BN,11666,0,0,0,11666,60.0,4.134236242070975,0.0,0.0,0.0,100.0
+SCD,39398,10391,31128,14052,39398,82.9,4.865399258845627,26.4,79.0,35.7,100.0
+SBD,23457,5570,17329,8359,23457,81.9,4.85624760199514,23.7,73.9,35.6,100.0
