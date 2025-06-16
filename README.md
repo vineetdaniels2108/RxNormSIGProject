@@ -28,6 +28,8 @@ This project processes RxNorm data to create a comprehensive medication database
 | **Branded Drugs (SBD)** | 23,457 |
 | **Brand Names (BN)** | 11,666 |
 | **Dose Forms** | 100+ types |
+| **48,457 medications (65%)** with dose form data |
+| **22,411 medications (30.1%)** with strength information |
 
 ## 🚀 Quick Start
 
@@ -40,7 +42,7 @@ This project processes RxNorm data to create a comprehensive medication database
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/RxNormSIGProject.git
+   git clone https://github.com/vineetdaniels2108/RxNormSIGProject.git
    cd RxNormSIGProject
    ```
 
@@ -49,28 +51,29 @@ This project processes RxNorm data to create a comprehensive medication database
    pip install -r requirements.txt
    ```
 
-3. **Download RxNorm data**
-   - Download RxNorm files from NIH
-   - Extract to `~/Downloads/RxNorm_full_MMDDYYYY/rrf/`
+3. **Ready to use!**
+   The main medication database (`data/medication_table_with_sigs.csv`) is included and ready to use.
+   
+   **Note**: Large intermediate files (`concepts.csv`, `attributes.csv`, `relationships.csv`) are excluded from GitHub due to size limits.
 
-4. **Process RxNorm data**
-   ```bash
-   python3 src/rxnorm_processor.py
-   ```
-
-5. **Create medication table**
-   ```bash
-   python3 src/create_medication_table.py
-   ```
-
-6. **Generate SIG instructions**
-   ```bash
-   python3 src/generate_sig_instructions.py
-   ```
-
-7. **Launch dashboard**
+4. **Launch dashboard**
    ```bash
    streamlit run src/streamlit_dashboard.py
+   ```
+
+### Optional: Regenerate from source data
+
+If you want to reprocess the data from RxNorm RRF files:
+
+1. **Download RxNorm data**
+   - Download RxNorm files from [NIH](https://www.nlm.nih.gov/research/umls/rxnorm/docs/rxnormfiles.html)
+   - Extract to `~/Downloads/RxNorm_full_MMDDYYYY/rrf/`
+
+2. **Process RxNorm data**
+   ```bash
+   python3 src/rxnorm_processor.py
+   python3 src/create_medication_table.py
+   python3 src/generate_sig_instructions.py
    ```
 
 ## 📁 Project Structure
@@ -179,7 +182,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Vineet Daniels**
 - Email: vineetdaniels@gmail.com
-- GitHub: [@yourusername](https://github.com/yourusername)
+- GitHub: [@vineetdaniels2108](https://github.com/vineetdaniels2108)
 
 ## 🎉 Acknowledgments
 
