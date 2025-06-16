@@ -128,11 +128,10 @@ data/rrf/
 Downloads/
 reports/
 
-# Large data files (but keep the processed ones)
-# Uncomment the lines below if data files are too large for GitHub
-# data/concepts.csv
-# data/attributes.csv
-# data/relationships.csv
+# Large data files (too big for GitHub)
+data/concepts.csv
+data/attributes.csv
+data/relationships.csv
 
 # OS specific
 .DS_Store
