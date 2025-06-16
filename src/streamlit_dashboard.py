@@ -28,8 +28,12 @@ def load_data():
     df['has_strength'] = df['available_strength'].notna() & (df['available_strength'] != '')
     df['has_sig'] = df['sig_count'] > 0
     
-    # Count filled columns (excluding internal ones)
-    key_columns = ['drug_name', 'term_type', 'dose_form', 'available_strength', 'sig_primary']
+    # Count filled columns (using cleaned columns if available, otherwise original)
+    drug_name_col = 'drug_name_clean' if 'drug_name_clean' in df.columns else 'drug_name'
+    dose_form_col = 'dose_form_clean' if 'dose_form_clean' in df.columns else 'dose_form'
+    strength_col = 'available_strength_clean' if 'available_strength_clean' in df.columns else 'available_strength'
+    
+    key_columns = [drug_name_col, 'term_type', dose_form_col, strength_col, 'sig_primary']
     df['filled_columns'] = 0
     for col in key_columns:
         df['filled_columns'] += (df[col].notna() & (df[col] != '')).astype(int)
@@ -43,6 +47,22 @@ def load_data():
         labels=['Low (0-40%)', 'Medium (40-60%)', 'High (60-80%)', 'Complete (80-100%)'],
         include_lowest=True
     )
+    
+    # Use cleaned columns for display if available
+    if 'drug_name_clean' in df.columns:
+        df['display_drug_name'] = df['drug_name_clean']
+    else:
+        df['display_drug_name'] = df['drug_name']
+        
+    if 'dose_form_clean' in df.columns:
+        df['display_dose_form'] = df['dose_form_clean']
+    else:
+        df['display_dose_form'] = df['dose_form']
+        
+    if 'available_strength_clean' in df.columns:
+        df['display_strength'] = df['available_strength_clean']
+    else:
+        df['display_strength'] = df['available_strength']
     
     return df
 
@@ -286,7 +306,8 @@ def main_dashboard_tab(df, filtered_df):
     with col1:
         st.metric("Total Medications", f"{len(filtered_df):,}")
     with col2:
-        st.metric("Dose Forms", f"{filtered_df['dose_form'].nunique():,}")
+        dose_form_col = 'display_dose_form' if 'dose_form_clean' in filtered_df.columns else 'dose_form'
+        st.metric("Dose Forms", f"{filtered_df[dose_form_col].nunique():,}")
     with col3:
         avg_sigs = filtered_df['sig_count'].mean()
         st.metric("Avg SIGs per Med", f"{avg_sigs:.1f}")
@@ -309,7 +330,8 @@ def main_dashboard_tab(df, filtered_df):
     
     with col2:
         st.subheader("📈 Top Dose Forms")
-        dose_counts = filtered_df['dose_form'].value_counts().head(10)
+        dose_form_col = 'display_dose_form' if 'dose_form_clean' in filtered_df.columns else 'dose_form'
+        dose_counts = filtered_df[dose_form_col].value_counts().head(10)
         fig2 = px.bar(
             x=dose_counts.values,
             y=dose_counts.index,
@@ -349,26 +371,57 @@ def search_tab(filtered_df):
     """Search and detailed view tab."""
     st.header("🔍 Search & Detailed View")
     
-    # Search functionality
-    search_term = st.text_input("Search by medication name:")
+    # Enhanced search functionality
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        search_term = st.text_input("Search by medication name, dose form, or strength:")
+    
+    with col2:
+        search_mode = st.selectbox("Search in:", ["All fields", "Drug name only", "Dose form only"])
     
     if search_term:
-        search_results = filtered_df[
-            filtered_df['drug_name'].str.contains(search_term, case=False, na=False)
-        ]
+        # Enhanced search using multiple fields and cleaned data
+        search_term_lower = search_term.lower()
+        
+        if search_mode == "All fields":
+            # Search in multiple fields including searchable_text if available
+            if 'searchable_text' in filtered_df.columns:
+                search_mask = filtered_df['searchable_text'].str.contains(search_term_lower, case=False, na=False)
+            else:
+                search_mask = (
+                    filtered_df['display_drug_name'].str.contains(search_term, case=False, na=False) |
+                    filtered_df['display_dose_form'].str.contains(search_term, case=False, na=False) |
+                    filtered_df['display_strength'].str.contains(search_term, case=False, na=False)
+                )
+        elif search_mode == "Drug name only":
+            search_mask = filtered_df['display_drug_name'].str.contains(search_term, case=False, na=False)
+        else:  # Dose form only
+            search_mask = filtered_df['display_dose_form'].str.contains(search_term, case=False, na=False)
+        
+        search_results = filtered_df[search_mask]
         st.write(f"Found {len(search_results)} medications containing '{search_term}':")
         
-        # Display results
+        # Display results with cleaned data
         for idx, row in search_results.head(10).iterrows():
-            with st.expander(f"💊 {row['drug_name']} ({row['term_type']}) - {row['completeness_percent']:.0f}% complete"):
+            with st.expander(f"💊 {row['display_drug_name']} ({row['term_type']}) - {row['completeness_percent']:.0f}% complete"):
                 col1, col2 = st.columns(2)
                 with col1:
                     st.write(f"**RXCUI:** {row['rxcui']}")
-                    if row['dose_form'] and str(row['dose_form']) != 'nan':
-                        st.write(f"**Dose Form:** {row['dose_form']}")
-                    if row['available_strength'] and str(row['available_strength']) != 'nan':
-                        st.write(f"**Strength:** {row['available_strength']}")
+                    if pd.notna(row['display_dose_form']) and str(row['display_dose_form']) != 'nan':
+                        st.write(f"**Dose Form:** {row['display_dose_form']}")
+                    if pd.notna(row['display_strength']) and str(row['display_strength']) != 'nan':
+                        st.write(f"**Strength:** {row['display_strength']}")
                     st.write(f"**Data Completeness:** {row['completeness_percent']:.1f}% ({row['filled_columns']}/5 fields)")
+                    
+                    # Show search keywords if available
+                    if 'search_keywords' in row and pd.notna(row['search_keywords']):
+                        try:
+                            keywords = eval(row['search_keywords']) if isinstance(row['search_keywords'], str) else row['search_keywords']
+                            if keywords:
+                                st.write(f"**Search Keywords:** {', '.join(keywords[:5])}{'...' if len(keywords) > 5 else ''}")
+                        except:
+                            pass
                 
                 with col2:
                     st.write(f"**Primary SIG:** {row['sig_primary']}")
@@ -383,12 +436,24 @@ def search_tab(filtered_df):
     # Data table with completeness info
     st.subheader("📋 Medication Data Table")
     
-    # Select columns to display
+    # Select columns to display (use cleaned columns if available)
+    available_cols = ['rxcui', 'display_drug_name', 'term_type', 'display_dose_form', 'display_strength', 
+                     'sig_primary', 'sig_count', 'filled_columns', 'completeness_percent']
+    
+    # Add original columns if cleaned ones don't exist
+    if 'drug_name_clean' not in filtered_df.columns:
+        available_cols = [col.replace('display_', '') for col in available_cols]
+    
+    # Add search keywords if available
+    if 'search_keywords' in filtered_df.columns:
+        available_cols.append('search_keywords')
+    
     display_cols = st.multiselect(
         "Select columns to display:",
-        options=['rxcui', 'drug_name', 'term_type', 'dose_form', 'available_strength', 
-                'sig_primary', 'sig_count', 'filled_columns', 'completeness_percent'],
-        default=['drug_name', 'term_type', 'dose_form', 'available_strength', 
+        options=available_cols,
+        default=['display_drug_name', 'term_type', 'display_dose_form', 'display_strength', 
+                'sig_primary', 'completeness_percent'] if 'drug_name_clean' in filtered_df.columns else
+                ['drug_name', 'term_type', 'dose_form', 'available_strength', 
                 'sig_primary', 'completeness_percent']
     )
     
@@ -413,9 +478,10 @@ def main():
     term_types = ['All'] + list(df['term_type'].unique())
     selected_term_type = st.sidebar.selectbox("Term Type", term_types)
     
-    # Dose form filter
-    dose_forms = df['dose_form'].dropna().unique()
-    dose_forms = ['All'] + [form for form in dose_forms if form and str(form) != 'nan']
+    # Dose form filter (use cleaned data if available)
+    dose_form_col = 'display_dose_form' if 'dose_form_clean' in df.columns else 'dose_form'
+    dose_forms = df[dose_form_col].dropna().unique()
+    dose_forms = ['All'] + sorted([form for form in dose_forms if form and str(form) != 'nan'])
     selected_dose_form = st.sidebar.selectbox("Dose Form", dose_forms)
     
     # Apply basic filters
@@ -423,7 +489,7 @@ def main():
     if selected_term_type != 'All':
         filtered_df = filtered_df[filtered_df['term_type'] == selected_term_type]
     if selected_dose_form != 'All':
-        filtered_df = filtered_df[filtered_df['dose_form'] == selected_dose_form]
+        filtered_df = filtered_df[filtered_df[dose_form_col] == selected_dose_form]
     
     # Create tabs
     tab1, tab2, tab3, tab4 = st.tabs([
