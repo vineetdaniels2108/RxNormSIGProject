@@ -464,6 +464,177 @@ def search_tab(filtered_df):
         
         st.dataframe(display_df, use_container_width=True)
 
+def medication_search_tab(df):
+    """Dedicated medication search tab with lazy filtering and SIG display."""
+    st.header("🔎 Medication Search")
+    st.markdown("Start typing to filter medications in real-time. Click on any medication to see all SIG instructions.")
+    
+    # Search input with lazy filtering
+    search_input = st.text_input(
+        "🔍 Search medications:", 
+        placeholder="Type medication name, dose form, or strength...",
+        help="Search is case-insensitive and searches across all fields"
+    )
+    
+    # Filter data as user types
+    if search_input:
+        search_term_lower = search_input.lower()
+        
+        # Enhanced search using multiple fields
+        if 'searchable_text' in df.columns:
+            search_mask = df['searchable_text'].str.contains(search_term_lower, case=False, na=False)
+        else:
+            search_mask = (
+                df['display_drug_name'].str.contains(search_input, case=False, na=False) |
+                df['display_dose_form'].str.contains(search_input, case=False, na=False) |
+                df['display_strength'].str.contains(search_input, case=False, na=False)
+            )
+        
+        filtered_results = df[search_mask]
+        
+        # Show results count
+        st.write(f"📊 **{len(filtered_results):,} medications found** (showing top 50)")
+        
+        # Limit display for performance
+        display_results = filtered_results.head(50)
+        
+        # Create expandable cards for each medication
+        for idx, row in display_results.iterrows():
+            # Create a summary line for the card
+            summary_parts = [row['display_drug_name']]
+            if pd.notna(row['display_dose_form']):
+                summary_parts.append(f"({row['display_dose_form']})")
+            if pd.notna(row['display_strength']):
+                summary_parts.append(f"- {row['display_strength']}")
+            
+            summary_line = " ".join(summary_parts)
+            completeness_badge = f"📊 {row['completeness_percent']:.0f}% complete"
+            
+            with st.expander(f"💊 {summary_line} | {completeness_badge}"):
+                # Create two columns for medication details
+                col1, col2 = st.columns([1, 1])
+                
+                with col1:
+                    st.markdown("### 📋 Medication Details")
+                    st.write(f"**RXCUI:** {row['rxcui']}")
+                    st.write(f"**Name:** {row['display_drug_name']}")
+                    st.write(f"**Term Type:** {row['term_type']}")
+                    
+                    if pd.notna(row['display_dose_form']):
+                        st.write(f"**Dose Form:** {row['display_dose_form']}")
+                    else:
+                        st.write("**Dose Form:** _Not specified_")
+                    
+                    if pd.notna(row['display_strength']):
+                        st.write(f"**Strength:** {row['display_strength']}")
+                    else:
+                        st.write("**Strength:** _Not specified_")
+                    
+                    st.write(f"**Data Completeness:** {row['completeness_percent']:.1f}% ({row['filled_columns']}/5 fields)")
+                    
+                    # Show search keywords if available
+                    if 'search_keywords' in row and pd.notna(row['search_keywords']):
+                        try:
+                            keywords = eval(row['search_keywords']) if isinstance(row['search_keywords'], str) else row['search_keywords']
+                            if keywords:
+                                st.write(f"**Search Keywords:** {', '.join(keywords[:8])}{'...' if len(keywords) > 8 else ''}")
+                        except:
+                            pass
+                
+                with col2:
+                    st.markdown("### 🧠 SIG Instructions")
+                    
+                    # Display primary SIG
+                    if pd.notna(row['sig_primary']):
+                        st.markdown("**Primary SIG:**")
+                        st.info(row['sig_primary'])
+                    
+                    # Display all SIG instructions
+                    if pd.notna(row['sig_instructions_json']):
+                        try:
+                            all_sigs = json.loads(row['sig_instructions_json'])
+                            if all_sigs:
+                                st.markdown(f"**All SIG Instructions ({len(all_sigs)}):**")
+                                
+                                for i, sig in enumerate(all_sigs, 1):
+                                    # Highlight the primary SIG
+                                    if sig == row['sig_primary']:
+                                        st.markdown(f"**{i}. {sig}** ⭐ _(Primary)_")
+                                    else:
+                                        st.write(f"{i}. {sig}")
+                            else:
+                                st.warning("No SIG instructions available")
+                        except:
+                            st.error("Error parsing SIG instructions")
+                    else:
+                        st.warning("No SIG instructions available")
+                
+                # Add download button for individual medication
+                st.markdown("---")
+                medication_data = {
+                    'rxcui': row['rxcui'],
+                    'drug_name': row['display_drug_name'],
+                    'term_type': row['term_type'],
+                    'dose_form': row['display_dose_form'] if pd.notna(row['display_dose_form']) else '',
+                    'strength': row['display_strength'] if pd.notna(row['display_strength']) else '',
+                    'primary_sig': row['sig_primary'] if pd.notna(row['sig_primary']) else '',
+                    'all_sigs': json.loads(row['sig_instructions_json']) if pd.notna(row['sig_instructions_json']) else []
+                }
+                
+                medication_json = json.dumps(medication_data, indent=2)
+                st.download_button(
+                    label="📥 Download Medication Data (JSON)",
+                    data=medication_json,
+                    file_name=f"medication_{row['rxcui']}.json",
+                    mime="application/json",
+                    key=f"download_{row['rxcui']}"
+                )
+        
+        if len(filtered_results) > 50:
+            st.info(f"💡 Showing top 50 results. Refine your search to see more specific matches from the {len(filtered_results):,} total results.")
+    
+    else:
+        # Show instructions when no search term
+        st.markdown("""
+        ### 🔍 How to Search
+        
+        **Start typing in the search box above to find medications:**
+        
+        - 🏷️ **By Name:** Type medication name (e.g., "Aspirin", "Tylenol")
+        - 💊 **By Dose Form:** Type form (e.g., "Tablet", "Capsule", "Solution") 
+        - 💪 **By Strength:** Type strength (e.g., "500 MG", "10 ML")
+        - 🔤 **Mixed Search:** Combine terms (e.g., "Aspirin Tablet")
+        
+        **Search Features:**
+        - ✅ **Real-time filtering** as you type
+        - ✅ **Case-insensitive** search
+        - ✅ **Multi-field** matching
+        - ✅ **Partial word** matching
+        - ✅ **Keyword-based** search
+        
+        **Tips:**
+        - Use abbreviations: "tab" finds tablets, "sol" finds solutions
+        - Search by brand names in brackets: "Tylenol", "Advil" 
+        - Use strength units: "MG", "ML", "MCG"
+        """)
+        
+        # Show some example searches
+        st.markdown("### 🎯 Try These Example Searches:")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("🔍 Aspirin", help="Search for Aspirin medications"):
+                st.rerun()
+        
+        with col2:
+            if st.button("🔍 Tablet", help="Search for tablet medications"):
+                st.rerun()
+                
+        with col3:
+            if st.button("🔍 500 MG", help="Search for 500 MG strength medications"):
+                st.rerun()
+
 def main():
     st.title("💊 RxNorm Medication Database Explorer")
     st.markdown("Interactive dashboard for exploring 74,521+ medications with SIG instructions and data quality analysis")
@@ -491,12 +662,13 @@ def main():
     if selected_dose_form != 'All':
         filtered_df = filtered_df[filtered_df[dose_form_col] == selected_dose_form]
     
-    # Create tabs
-    tab1, tab2, tab3, tab4 = st.tabs([
+    # Create tabs - Added Medication Search tab
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📊 Overview", 
         "🔍 Data Completeness", 
         "🎯 Quality Filters", 
-        "🔎 Search & Details"
+        "🔎 Search & Details",
+        "🔍 Medication Search"
     ])
     
     with tab1:
@@ -511,21 +683,40 @@ def main():
     with tab4:
         search_tab(filtered_df)
     
-    # Download section (always visible)
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("💾 Download Data")
+    with tab5:
+        medication_search_tab(filtered_df)
     
-    # Download filtered data
+    # Enhanced download section in sidebar
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("💾 Download Options")
+    
+    # Download entire dataset
+    st.sidebar.markdown("**📂 Complete Dataset**")
+    
+    # Prepare full dataset for download
+    full_csv = df.to_csv(index=False)
+    st.sidebar.download_button(
+        label="📥 Download Complete Dataset",
+        data=full_csv,
+        file_name="rxnorm_complete_medication_database.csv",
+        mime="text/csv",
+        help=f"Download all {len(df):,} medications with SIG instructions"
+    )
+    
+    # Download current filtered view
+    st.sidebar.markdown("**🔍 Current View**")
     csv = filtered_df.to_csv(index=False)
     st.sidebar.download_button(
-        label="📥 Download Current View",
+        label="📥 Download Filtered Data",
         data=csv,
         file_name=f"filtered_medications_{selected_term_type}_{selected_dose_form}.csv",
-        mime="text/csv"
+        mime="text/csv",
+        help=f"Download current view ({len(filtered_df):,} medications)"
     )
     
     # Export SIG instructions
     if len(filtered_df) > 0:
+        st.sidebar.markdown("**🧠 SIG Instructions**")
         sig_export = []
         for idx, row in filtered_df.iterrows():
             if row['sig_instructions_json']:
@@ -533,7 +724,10 @@ def main():
                 for sig in sigs:
                     sig_export.append({
                         'rxcui': row['rxcui'],
-                        'drug_name': row['drug_name'],
+                        'drug_name': row['display_drug_name'],
+                        'term_type': row['term_type'],
+                        'dose_form': row['display_dose_form'] if pd.notna(row['display_dose_form']) else '',
+                        'strength': row['display_strength'] if pd.notna(row['display_strength']) else '',
                         'sig_instruction': sig
                     })
         
@@ -541,11 +735,25 @@ def main():
             sig_df = pd.DataFrame(sig_export)
             sig_csv = sig_df.to_csv(index=False)
             st.sidebar.download_button(
-                label="📋 Download SIG Instructions",
+                label="📋 Download All SIG Instructions",
                 data=sig_csv,
                 file_name="all_sig_instructions.csv",
-                mime="text/csv"
+                mime="text/csv",
+                help=f"Download {len(sig_export):,} SIG instructions"
             )
+    
+    # Dataset information
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("**📊 Dataset Info**")
+    st.sidebar.write(f"Total medications: {len(df):,}")
+    st.sidebar.write(f"Complete records: {len(df[df['filled_columns'] == 5]):,}")
+    st.sidebar.write(f"Average SIGs per med: {df['sig_count'].mean():.1f}")
+    
+    # GitHub link
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("**🔗 Resources**")
+    st.sidebar.markdown("[📁 GitHub Repository](https://github.com/vineetdaniels2108/RxNormSIGProject)")
+    st.sidebar.markdown("[📖 Usage Documentation](https://github.com/vineetdaniels2108/RxNormSIGProject/blob/main/DATA_USAGE_README.md)")
 
 if __name__ == "__main__":
     main() 
