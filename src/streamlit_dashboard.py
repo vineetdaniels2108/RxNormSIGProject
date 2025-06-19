@@ -66,8 +66,9 @@ def load_data():
         'brand_searchable_text', 'enhanced_searchable_text', 'brand_drug_name_merged'
     ]
     
-    # Try to read enhanced data v2 first, then v1, then cleaned, then original
-    for filename in ['data/medication_table_with_sigs_enhanced_v2.csv',
+    # Try to read enhanced data v3 first, then v2, then v1, then cleaned, then original
+    for filename in ['data/medication_table_with_sigs_enhanced_v3.csv',
+                     'data/medication_table_with_sigs_enhanced_v2.csv',
                      'data/medication_table_with_sigs_enhanced.csv', 
                      'data/medication_table_with_sigs_cleaned.csv',
                      'data/medication_table_with_sigs.csv']:
@@ -685,8 +686,8 @@ def search_tab(filtered_df):
 
 def medication_search_tab(df):
     """Enhanced medication search tab with brand name, NDC, and comprehensive filtering."""
-    st.header("🔎 Enhanced Medication Search")
-    st.markdown("Search by drug name, brand/company name, NDC code, or any combination. Enhanced with pharmaceutical company data!")
+    st.header("🔎 Enhanced Medication Search v3.0")
+    st.markdown("Search by drug name, brand/company name, **HIPAA-standardized NDC code**, or any combination. All NDC codes now in 11-digit 5-4-2 format for billing compliance!")
     
     # Enhanced search interface
     col1, col2 = st.columns([3, 1])
@@ -694,8 +695,8 @@ def medication_search_tab(df):
     with col1:
         search_input = st.text_input(
             "🔍 Search medications:", 
-            placeholder="Type drug name, company (e.g., 'Lilly', 'Pfizer'), NDC, dose form, or strength...",
-            help="Enhanced search across all fields including pharmaceutical companies and NDC codes"
+            placeholder="Type drug name, company (e.g., 'Lilly', 'Pfizer'), NDC (e.g., '12345-6789-01'), dose form, or strength...",
+            help="Enhanced search across all fields including pharmaceutical companies and HIPAA-standardized NDC codes (11-digit 5-4-2 format)"
         )
     
     with col2:
@@ -762,12 +763,17 @@ def medication_search_tab(df):
                 with col2:
                     st.markdown("### 🏢 Company & Codes")
                     
-                    # NDC Information
+                    # NDC Information (HIPAA Standardized)
                     if pd.notna(row.get('ndc_primary')):
-                        st.write(f"**Primary NDC:** {row['ndc_primary']}")
+                        st.write(f"**Primary NDC (HIPAA):** {row['ndc_primary']}")
+                        st.caption("✅ 11-digit 5-4-2 format (billing ready)")
                         ndc_count = row.get('ndc_count', 0)
                         if ndc_count > 1:
                             st.write(f"**Total NDCs:** {ndc_count}")
+                        
+                        # Show original NDC if different
+                        if pd.notna(row.get('ndc_primary_original')) and row.get('ndc_primary_original') != row.get('ndc_primary'):
+                            st.write(f"**Original NDC:** {row['ndc_primary_original']}")
                     else:
                         st.write("**NDC:** _Not available_")
                     
@@ -911,8 +917,8 @@ def medication_search_tab(df):
                 st.rerun()
 
 def main():
-    st.title("💊 Enhanced RxNorm Medication Database Explorer")
-    st.markdown("Interactive dashboard for exploring 74,521+ medications with SIG instructions, NDC codes, and pharmaceutical company data")
+    st.title("💊 Enhanced RxNorm Medication Database Explorer v3.0")
+    st.markdown("Interactive dashboard for exploring 74,521+ medications with SIG instructions, **HIPAA-standardized NDC codes**, and pharmaceutical company data")
     
     # Performance status indicator
     with st.expander("⚡ Performance Status", expanded=False):
@@ -924,7 +930,7 @@ def main():
         with col3:
             st.metric("Caching", "✅ Enabled")
         with col4:
-            st.metric("Enhanced Data", "✅ NDC + Brands")
+            st.metric("Enhanced Data", "✅ v3.0 HIPAA NDC")
     
     # Load data
     df = load_data()
@@ -1036,7 +1042,7 @@ def main():
     
     # Enhanced download section in sidebar
     st.sidebar.markdown("---")
-    st.sidebar.subheader("💾 Enhanced Download Options")
+    st.sidebar.subheader("💾 Enhanced Download Options v3.0")
     
     # Download entire enhanced dataset
     st.sidebar.markdown("**📂 Complete Enhanced Dataset**")
@@ -1048,7 +1054,7 @@ def main():
         data=full_csv,
         file_name="rxnorm_enhanced_medication_database.csv",
         mime="text/csv",
-        help=f"Download all {len(df):,} medications with SIG instructions, NDC codes, and pharmaceutical company data"
+        help=f"Download all {len(df):,} medications with SIG instructions, HIPAA-standardized NDC codes (11-digit), and pharmaceutical company data"
     )
     
     # Download current filtered view
@@ -1159,7 +1165,7 @@ def main():
     
     # Enhanced dataset information
     st.sidebar.markdown("---")
-    st.sidebar.markdown("**📊 Enhanced Dataset Info**")
+    st.sidebar.markdown("**📊 Enhanced Dataset Info v3.0**")
     st.sidebar.write(f"Total medications: {len(df):,}")
     st.sidebar.write(f"Complete records: {len(df[df['filled_columns'] >= 5]):,}")
     st.sidebar.write(f"Average SIGs per med: {df['sig_count'].mean():.1f}")
@@ -1167,7 +1173,7 @@ def main():
     # Enhanced data statistics
     if 'has_ndc' in df.columns:
         ndc_count = df['has_ndc'].sum()
-        st.sidebar.write(f"With NDC codes: {ndc_count:,} ({(ndc_count/len(df)*100):.1f}%)")
+        st.sidebar.write(f"With HIPAA NDC codes: {ndc_count:,} ({(ndc_count/len(df)*100):.1f}%)")
     
     if 'has_pharma_company' in df.columns:
         pharma_count = df['has_pharma_company'].sum()
@@ -1177,6 +1183,12 @@ def main():
         unique_pharma = df[pharma_col].nunique()
         status = "(cleaned)" if pharma_col == 'pharma_company_cleaned' else "(original)"
         st.sidebar.write(f"Unique pharma companies: {unique_pharma:,} {status}")
+    
+    # v3.0 specific features
+    st.sidebar.markdown("**🏥 v3.0 NDC Features:**")
+    st.sidebar.write("✅ HIPAA 11-digit format (5-4-2)")
+    st.sidebar.write("✅ Billing system compliant")
+    st.sidebar.write("✅ CMS/Medicaid ready")
     
     # Performance tips
     create_performance_warning()
