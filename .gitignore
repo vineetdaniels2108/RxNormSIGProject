@@ -151,3 +151,5 @@ Thumbs.db
 
 # Streamlit
 .streamlit/ 
+# Enhanced medication files (too large for GitHub)
+data/medication_table_with_sigs_enhanced*.csv
